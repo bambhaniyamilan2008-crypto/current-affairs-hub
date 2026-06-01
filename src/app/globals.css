@@ -1,0 +1,48 @@
+/* src/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #f9fafb; /* gray-50 */
+    --foreground: #111827; /* gray-900 */
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: #0a0a0a; /* Premium dark background */
+      --foreground: #f9fafb; /* gray-50 */
+    }
+  }
+
+  /* Smooth scrolling across the whole app */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  /* Utility class to hide scrollbar but keep scrolling functionality */
+  .hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+
+  /* Markdown prose styling overrides for dark mode */
+  .prose p {
+    margin-bottom: 1.5em;
+    line-height: 1.75;
+  }
+}

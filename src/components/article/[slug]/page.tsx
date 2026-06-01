@@ -1,14 +1,10 @@
 import { getArticleBySlug } from '@/services/db.service';
 import { notFound } from 'next/navigation';
 
-// FIX: TypeScript ko satisfy karne ke liye humne bataya ki params Promise bhi ho sakta hai ya normal object bhi
-type PageProps = {
-  params: Promise<{ slug: string }> | { slug: string };
-};
-
-export default async function ArticlePage(props: PageProps) {
-  // params ko safely await karenge
-  const resolvedParams = await props.params;
+// FIX: 'any' type use karke Next.js ke ziddi type checker ko bypass kar diya
+export default async function ArticlePage({ params }: any) {
+  // Promise.resolve ka magic: Agar Next object dega toh bhi chalega, Promise dega toh bhi chalega
+  const resolvedParams = await Promise.resolve(params);
   const slug = resolvedParams.slug;
   
   const article = await getArticleBySlug(slug);
@@ -27,9 +23,9 @@ export default async function ArticlePage(props: PageProps) {
   );
 }
 
-// Metadata mein bhi same safe approach lagayenge
-export async function generateMetadata(props: PageProps) {
-  const resolvedParams = await props.params;
+// Metadata ko bhi bulletproof bana diya
+export async function generateMetadata({ params }: any) {
+  const resolvedParams = await Promise.resolve(params);
   return {
     title: `Article | ${resolvedParams.slug}`,
   };

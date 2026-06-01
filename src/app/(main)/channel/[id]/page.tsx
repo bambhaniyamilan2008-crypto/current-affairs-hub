@@ -20,7 +20,6 @@ async function getChannelData(channelId: string) {
   const channel = { id: channelSnap.id, ...channelSnap.data() } as Channel;
 
   // 2. Fetch Articles/Updates published in this channel
-  // Assuming articles have an optional 'channelId' field for channel posts
   const articlesRef = collection(db, 'articles');
   const q = query(
     articlesRef, 
@@ -28,13 +27,30 @@ async function getChannelData(channelId: string) {
     orderBy('createdAt', 'desc')
   );
   const articlesSnap = await getDocs(q);
-  const articles = articlesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Article[];
+  
+  // FIX 1: Timestamp conversion added so PostCard doesn't crash
+  const articles = articlesSnap.docs.map(doc => {
+    const data = doc.data();
+    return { 
+      id: doc.id, 
+      ...data,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date().toISOString(),
+    };
+  }) as unknown as Article[];
 
   return { channel, articles };
 }
 
-export default async function ChannelPage({ params }: { params: { id: string } }) {
-  const data = await getChannelData(params.id);
+// FIX 2: Next.js 15 params type update (Promise is required)
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function ChannelPage({ params }: PageProps) {
+  // FIX 3: Await the params before using it
+  const { id } = await params;
+  const data = await getChannelData(id);
 
   if (!data) {
     notFound();

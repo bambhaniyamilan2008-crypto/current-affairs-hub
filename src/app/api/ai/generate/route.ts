@@ -1,4 +1,4 @@
-// src/app/api/ai/generate/route.ts
+// src/app/api/auto-post/route.ts (ya jo bhi path tu use kar raha hai)
 import { NextResponse } from 'next/server';
 import { generateDailyArticle } from '@/services/ai.service';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -16,9 +16,11 @@ const TOPICS = [
 
 export async function GET(request: Request) {
   try {
-    // 1. Security Check: Vercel Cron Secret validation
-    const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    // ✅ FIX 1: URL Query Parameter se Secret check karna (cron-job.org ke liye sabse aasan)
+    const { searchParams } = new URL(request.url);
+    const secret = searchParams.get('secret');
+
+    if (secret !== process.env.CRON_SECRET) {
       console.warn("Unauthorized AI generate attempt!");
       return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
     }
@@ -27,7 +29,6 @@ export async function GET(request: Request) {
     const randomTopic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
     console.log(`🤖 AI is generating news for topic: ${randomTopic}`);
 
-    // 3. Generate Content via Gemini
     // 3. Generate Content via Gemini
     const articleData = await generateDailyArticle(randomTopic);
 
@@ -50,10 +51,10 @@ export async function GET(request: Request) {
       authorAvatar: 'https://ui-avatars.com/api/?name=AI+News&background=0D8ABC&color=fff',
       isAuthorVerified: true,
       isAIGenerated: true,
-      title: safeTitle,           // ✅ Safe variable use kiya
-      summary: safeSummary,       // ✅ Safe variable use kiya
-      content: safeContent,       // ✅ Safe variable use kiya
-      category: safeCategory,     // ✅ Safe variable use kiya
+      title: safeTitle,
+      summary: safeSummary,
+      content: safeContent,
+      category: safeCategory,
       tags: articleData?.tags || ['news', 'ai'],
       seoTitle: articleData?.seoTitle || safeTitle,
       seoDescription: articleData?.seoDescription || safeSummary,

@@ -30,14 +30,32 @@ async function getProfileData(username: string) {
   );
   
   const postsSnapshot = await getDocs(postsQuery);
-  const posts = postsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Article[];
+  
+  // FIX: Timestamp safe conversion so PostCard doesn't crash
+  const posts = postsSnapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date().toISOString(),
+    };
+  }) as unknown as Article[];
 
   return { profile, posts };
 }
 
-export default async function ProfilePage({ params }: { params: { username: string } }) {
+// FIX: Next.js 15 official Promise rule for params
+type PageProps = {
+  params: Promise<{ username: string }>;
+};
+
+export default async function ProfilePage(props: PageProps) {
+  // FIX: Safely await the params Promise
+  const resolvedParams = await props.params;
+  
   // Decode username just in case
-  const decodedUsername = decodeURIComponent(params.username);
+  const decodedUsername = decodeURIComponent(resolvedParams.username);
   const data = await getProfileData(decodedUsername);
 
   if (!data) {

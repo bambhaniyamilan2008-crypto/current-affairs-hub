@@ -39,14 +39,28 @@ async function getCategoryArticles(categoryName: string) {
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  })) as Article[];
+  
+  // FIX: Timestamp safe conversion so PostCard doesn't crash
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date().toISOString(),
+    };
+  }) as unknown as Article[];
 }
 
-export default async function CategoryPage({ params }: { params: { slug: string } }) {
-  const formattedCategory = formatCategorySlug(params.slug);
+// FIX: Next.js 15 official rule - params must be a Promise
+type PageProps = {
+  params: Promise<{ slug: string }>;
+};
+
+export default async function CategoryPage(props: PageProps) {
+  // FIX: Safely await the params Promise before using
+  const resolvedParams = await props.params;
+  const formattedCategory = formatCategorySlug(resolvedParams.slug);
   const articles = await getCategoryArticles(formattedCategory);
 
   return (

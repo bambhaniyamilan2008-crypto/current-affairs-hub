@@ -20,8 +20,15 @@ async function getArticleBySlug(slug: string) {
   return { id: doc.id, ...doc.data() } as Article;
 }
 
-export default async function ArticlePage({ params }: { params: { slug: string } }) {
-  const article = await getArticleBySlug(params.slug);
+// FIX: Ab compiler ko Promise hi chahiye, toh humne exact official Promise type de diya
+type PageProps = {
+  params: Promise<{ slug: string }>;
+};
+
+export default async function ArticlePage(props: PageProps) {
+  // FIX: Runtime par props.params ko properly await kar liya
+  const resolvedParams = await props.params;
+  const article = await getArticleBySlug(resolvedParams.slug);
 
   if (!article) {
     notFound();

@@ -1,7 +1,7 @@
 // src/app/(main)/search/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { InstantSearch, SearchBox, Hits, Configure } from 'react-instantsearch';
 import { searchClient, INDICES } from '@/lib/algolia';
@@ -39,15 +39,15 @@ const ArticleHit = ({ hit }: { hit: any }) => (
   </Link>
 );
 
-export default function SearchPage() {
+// Inner component using useSearchParams
+function SearchContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   
   const [activeTab, setActiveTab] = useState<'articles' | 'users' | 'channels'>('articles');
 
   return (
-    <div className="max-w-4xl mx-auto w-full py-8 px-4 sm:px-6">
-      
+    <>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
           <Search className="w-8 h-8 text-blue-600" />
@@ -106,20 +106,29 @@ export default function SearchPage() {
 
           {activeTab === 'users' && (
             <div className="text-center text-gray-500 py-10">
-              {/* Similar Hit component can be created for Users */}
               User search results will appear here.
             </div>
           )}
 
           {activeTab === 'channels' && (
             <div className="text-center text-gray-500 py-10">
-              {/* Similar Hit component can be created for Channels */}
               Channel search results will appear here.
             </div>
           )}
         </div>
 
       </InstantSearch>
+    </>
+  );
+}
+
+// Main page component wrapped in Suspense boundary
+export default function SearchPage() {
+  return (
+    <div className="max-w-4xl mx-auto w-full py-8 px-4 sm:px-6">
+      <Suspense fallback={<div className="text-center text-gray-500 py-10">Loading search...</div>}>
+        <SearchContent />
+      </Suspense>
     </div>
   );
 }

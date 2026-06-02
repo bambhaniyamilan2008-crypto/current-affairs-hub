@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { AlertCircle, CheckCircle2, Image as ImageIcon, Link as LinkIcon, Loader2, Send } from 'lucide-react';
 import { CategoryType } from '@/types';
+// ✅ Naye Firebase imports add kiye
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const CATEGORIES: CategoryType[] = [
   'National', 'International', 'Gujarat', 'Economy', 
@@ -18,7 +21,7 @@ export default function CreatePostPage() {
   const router = useRouter();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [aiStatus, setAiStatus] = useState<{ status: 'idle' | 'analyzing' | 'success' | 'rejected'; message: string }>({
+  const [submitStatus, setSubmitStatus] = useState<{ status: 'idle' | 'publishing' | 'success' | 'error'; message: string }>({
     status: 'idle',
     message: ''
   });
@@ -37,49 +40,45 @@ export default function CreatePostPage() {
     if (!user) return alert('Please login to post!');
 
     setIsSubmitting(true);
-    setAiStatus({ status: 'analyzing', message: 'AI is analyzing your content for facts, spam, and relevance...' });
+    setSubmitStatus({ status: 'publishing', message: 'Publishing your article directly...' });
 
     try {
-      const response = await fetch('/api/article/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: formData.title,
-          content: formData.content,
-          category: formData.category,
-          sourceUrl: formData.sourceUrl,
-          coverImage: formData.coverImage,
-          tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
-          authorId: user.uid,
-          authorName: user.displayName || 'Anonymous User',
-          authorAvatar: user.photoURL || '',
-        })
-      });
+      // ✅ URL ke liye ek clean slug (link) generate kiya
+      const slug = formData.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '') + '-' + Math.floor(Math.random() * 10000);
 
-      const data = await response.json();
+      // ✅ Article ka data tayyar kiya (Bina AI ke, direct approved)
+      const articleData = {
+        title: formData.title,
+        content: formData.content,
+        category: formData.category,
+        sourceUrl: formData.sourceUrl,
+        coverImage: formData.coverImage,
+        tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
+        authorId: user.uid,
+        authorName: user.displayName || 'Anonymous User',
+        authorAvatar: user.photoURL || '',
+        slug: slug,
+        status: 'approved', // Direct publish kar diya
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        likesCount: 0,
+        commentsCount: 0,
+      };
 
-      if (!response.ok) {
-        // AI Rejected the post (Trust score < 40)
-        setAiStatus({ 
-          status: 'rejected', 
-          message: data.reason || data.error || 'Post rejected due to low trust score or policy violation.' 
-        });
-        setIsSubmitting(false);
-        return;
-      }
+      // ✅ Seedha Firebase database mein save kar diya (No API needed)
+      await addDoc(collection(db, 'articles'), articleData);
 
-      // Success or Pending Moderation
-      if (data.status === 'approved') {
-        setAiStatus({ status: 'success', message: `Awesome! AI Trust Score: ${data.aiScores.trustScore}%. Publishing now...` });
-        setTimeout(() => router.push(`/article/${data.slug}`), 2000);
-      } else {
-        setAiStatus({ status: 'success', message: 'Submitted successfully! Pending human moderation due to borderline AI score.' });
-        setTimeout(() => router.push('/profile/me'), 3000);
-      }
+      setSubmitStatus({ status: 'success', message: 'Published successfully! Redirecting...' });
+      
+      // ✅ Post banne ke baad us article ke page par bhej diya
+      setTimeout(() => router.push(`/article/${slug}`), 1500);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Submission error:", error);
-      setAiStatus({ status: 'rejected', message: 'Something went wrong. Please try again.' });
+      setSubmitStatus({ status: 'error', message: error.message || 'Something went wrong. Please try again.' });
       setIsSubmitting(false);
     }
   };
@@ -99,7 +98,7 @@ export default function CreatePostPage() {
     <div className="max-w-3xl mx-auto w-full py-8 px-4 sm:px-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create Article</h1>
-        <p className="text-gray-500">Share verified news and updates. All submissions are AI-checked.</p>
+        <p className="text-gray-500">Share news and updates instantly.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-white dark:bg-gray-950 p-6 sm:p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -170,18 +169,18 @@ export default function CreatePostPage() {
           </div>
         </div>
 
-        {/* AI Status Banner */}
-        {aiStatus.status !== 'idle' && (
+        {/* Status Banner */}
+        {submitStatus.status !== 'idle' && (
           <div className={`p-4 rounded-xl flex items-start gap-3 border ${
-            aiStatus.status === 'analyzing' ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800' :
-            aiStatus.status === 'success' ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800' :
+            submitStatus.status === 'publishing' ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800' :
+            submitStatus.status === 'success' ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800' :
             'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800'
           }`}>
-            {aiStatus.status === 'analyzing' && <Loader2 className="w-5 h-5 animate-spin mt-0.5" />}
-            {aiStatus.status === 'success' && <CheckCircle2 className="w-5 h-5 mt-0.5" />}
-            {aiStatus.status === 'rejected' && <AlertCircle className="w-5 h-5 mt-0.5" />}
+            {submitStatus.status === 'publishing' && <Loader2 className="w-5 h-5 animate-spin mt-0.5" />}
+            {submitStatus.status === 'success' && <CheckCircle2 className="w-5 h-5 mt-0.5" />}
+            {submitStatus.status === 'error' && <AlertCircle className="w-5 h-5 mt-0.5" />}
             <div>
-              <p className="font-medium text-sm">{aiStatus.message}</p>
+              <p className="font-medium text-sm">{submitStatus.message}</p>
             </div>
           </div>
         )}
@@ -196,7 +195,7 @@ export default function CreatePostPage() {
             {isSubmitting ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                AI is processing...
+                Publishing...
               </>
             ) : (
               <>

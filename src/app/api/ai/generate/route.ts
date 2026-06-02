@@ -1,10 +1,9 @@
-// src/app/api/auto-post/route.ts (ya jo bhi path tu use kar raha hai)
+// src/app/api/ai/generate/route.ts
 import { NextResponse } from 'next/server';
 import { generateDailyArticle } from '@/services/ai.service';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-// List of topics AI should rotate through
 const TOPICS = [
   "Latest National Government Scheme in India",
   "Major International Geopolitical update",
@@ -16,35 +15,31 @@ const TOPICS = [
 
 export async function GET(request: Request) {
   try {
-    // ✅ FIX 1: URL Query Parameter se Secret check karna (cron-job.org ke liye sabse aasan)
-    const { searchParams } = new URL(request.url);
-    const secret = searchParams.get('secret');
+    // ✅ NAYA SECURITY CHECK: Ab ye URL se 'secret' padhega
+    const url = new URL(request.url);
+    const secret = url.searchParams.get('secret');
 
+    // Check karo ki URL wala secret aur Vercel wala secret match ho rahe hain ya nahi
     if (secret !== process.env.CRON_SECRET) {
       console.warn("Unauthorized AI generate attempt!");
       return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
     }
 
-    // 2. Pick a random topic for this specific cron run
     const randomTopic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
     console.log(`🤖 AI is generating news for topic: ${randomTopic}`);
 
-    // 3. Generate Content via Gemini
     const articleData = await generateDailyArticle(randomTopic);
 
-    // ✅ SAFE CHECK: Agar AI title dena bhool jaye, toh fallback use karo
     const safeTitle = articleData?.title || "AI Generated Update";
     const safeSummary = articleData?.summary || "Read the latest automated news update.";
     const safeContent = articleData?.content || "Content generation in progress.";
     const safeCategory = articleData?.category || "National";
 
-    // 4. Generate a clean URL Slug safely
     const slug = safeTitle
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '') + '-' + Math.floor(Math.random() * 10000);
 
-    // 5. Format Data for Database
     const aiArticle = {
       authorId: 'ai-engine',
       authorName: 'AI News Desk',
@@ -74,7 +69,6 @@ export async function GET(request: Request) {
       sharesCount: 0
     };
 
-    // 6. Direct Publish to Firestore
     const docRef = await addDoc(collection(db, 'articles'), aiArticle);
     console.log(`✅ AI Article Published! ID: ${docRef.id}`);
 

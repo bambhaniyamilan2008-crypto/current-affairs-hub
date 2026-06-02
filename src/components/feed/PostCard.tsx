@@ -1,13 +1,13 @@
 // src/components/feed/PostCard.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, Share2, Bookmark, ShieldCheck, AlertTriangle } from 'lucide-react';
-// ✅ Firebase ke saare zaroori functions import kar liye (setDoc, deleteDoc included)
-import { doc, updateDoc, increment, setDoc, deleteDoc } from 'firebase/firestore';
+// ✅ Firebase ke saare zaroori functions import kar liye (arrayUnion aur arrayRemove add kiya hai)
+import { doc, updateDoc, increment, setDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { Article } from '@/types';
@@ -16,9 +16,12 @@ export default function PostCard({ article }: { article: Article }) {
   const { user } = useAuth();
   const router = useRouter();
 
+  // ✅ Check karo ki kya is user ne pehle se like kiya hua hai
+  const initialIsLiked = user?.uid && article.likedBy ? article.likedBy.includes(user.uid) : false;
+
   // State for interactive buttons
   const [likesCount, setLikesCount] = useState(article.likesCount || 0);
-  const [isLiked, setIsLiked] = useState(false);
+  const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [isSaved, setIsSaved] = useState(false);
 
   // Determine border color based on AI Trust Score
@@ -35,7 +38,7 @@ export default function PostCard({ article }: { article: Article }) {
       : article.createdAt?.toDate?.() || Date.now()
   ).toLocaleDateString();
 
-  // Handle Like Action
+  // ✅ SMART LIKE ACTION
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault(); 
     
@@ -45,26 +48,28 @@ export default function PostCard({ article }: { article: Article }) {
     }
 
     // Optimistic Update: UI turant change karo taaki lag na ho
-    setIsLiked(!isLiked);
-    setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
+    const newIsLiked = !isLiked;
+    setIsLiked(newIsLiked);
+    setLikesCount(prev => newIsLiked ? prev + 1 : prev - 1);
 
     try {
-      // Firebase me background me update karo
+      // Firebase me background me update karo (Count + User ID dono)
       if (article.id) {
         const articleRef = doc(db, 'articles', article.id);
         await updateDoc(articleRef, {
-          likesCount: increment(isLiked ? -1 : 1)
+          likesCount: increment(newIsLiked ? 1 : -1),
+          likedBy: newIsLiked ? arrayUnion(user.uid) : arrayRemove(user.uid) // ✅ ID list update
         });
       }
     } catch (error) {
       console.error("Error liking article:", error);
       // Agar error aaye toh UI ko wapas purani state me laao
-      setIsLiked(!isLiked);
-      setLikesCount(prev => isLiked ? prev + 1 : prev - 1);
+      setIsLiked(!newIsLiked);
+      setLikesCount(prev => newIsLiked ? prev - 1 : prev + 1);
     }
   };
 
-  // Handle Share Action (Improved for PC & Mobile)
+  // ✅ SHARE ACTION (Improved for PC & Mobile)
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault();
     const articleUrl = `${window.location.origin}/article/${article.slug}`;
@@ -90,6 +95,7 @@ export default function PostCard({ article }: { article: Article }) {
       }
     }
   };
+
   // ✅ COMPLETE FIREBASE BOOKMARK LOGIC
   const handleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();

@@ -64,6 +64,9 @@ export interface Article {
   sharesCount: number;
   savesCount: number;
   
+  // ✅ YAHAN ADD KIYA HAI: Users ki ID list jinhone like kiya hai
+  likedBy?: string[]; 
+  
   // AI Metrics
   aiScores: AIScores;
   status: 'approved' | 'pending_moderation' | 'rejected';

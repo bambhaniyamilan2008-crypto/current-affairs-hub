@@ -64,12 +64,13 @@ export default function PostCard({ article }: { article: Article }) {
     }
   };
 
-  // Handle Share Action (Native Web Share API)
+  // Handle Share Action (Improved for PC & Mobile)
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault();
     const articleUrl = `${window.location.origin}/article/${article.slug}`;
     
-    if (navigator.share) {
+    // Agar mobile browser hai toh Share menu kholo
+    if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
       try {
         await navigator.share({
           title: article.title,
@@ -80,12 +81,15 @@ export default function PostCard({ article }: { article: Article }) {
         console.error('Error sharing:', err);
       }
     } else {
-      // Fallback for desktop browsers without share menu
-      await navigator.clipboard.writeText(articleUrl);
-      alert('Article link copied to clipboard!');
+      // Agar PC/Laptop hai, toh link copy karo aur clear notification do
+      try {
+        await navigator.clipboard.writeText(articleUrl);
+        alert('✅ Article link copied! Aap isko kahin bhi paste kar sakte hain.');
+      } catch (err) {
+        alert('Link copy nahi ho paya.');
+      }
     }
   };
-
   // ✅ COMPLETE FIREBASE BOOKMARK LOGIC
   const handleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();

@@ -28,10 +28,17 @@ export async function GET(request: Request) {
     console.log(`🤖 AI is generating news for topic: ${randomTopic}`);
 
     // 3. Generate Content via Gemini
+    // 3. Generate Content via Gemini
     const articleData = await generateDailyArticle(randomTopic);
 
-    // 4. Generate a clean URL Slug
-    const slug = articleData.title
+    // ✅ SAFE CHECK: Agar AI title dena bhool jaye, toh fallback use karo
+    const safeTitle = articleData?.title || "AI Generated Update";
+    const safeSummary = articleData?.summary || "Read the latest automated news update.";
+    const safeContent = articleData?.content || "Content generation in progress.";
+    const safeCategory = articleData?.category || "National";
+
+    // 4. Generate a clean URL Slug safely
+    const slug = safeTitle
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '') + '-' + Math.floor(Math.random() * 10000);
@@ -40,19 +47,19 @@ export async function GET(request: Request) {
     const aiArticle = {
       authorId: 'ai-engine',
       authorName: 'AI News Desk',
-      authorAvatar: 'https://ui-avatars.com/api/?name=AI+News&background=0D8ABC&color=fff', // Auto-generated clean avatar
+      authorAvatar: 'https://ui-avatars.com/api/?name=AI+News&background=0D8ABC&color=fff',
       isAuthorVerified: true,
       isAIGenerated: true,
-      title: articleData.title,
-      summary: articleData.summary,
-      content: articleData.content,
-      category: articleData.category,
-      tags: articleData.tags || [],
-      seoTitle: articleData.seoTitle || articleData.title,
-      seoDescription: articleData.seoDescription || articleData.summary,
+      title: safeTitle,           // ✅ Safe variable use kiya
+      summary: safeSummary,       // ✅ Safe variable use kiya
+      content: safeContent,       // ✅ Safe variable use kiya
+      category: safeCategory,     // ✅ Safe variable use kiya
+      tags: articleData?.tags || ['news', 'ai'],
+      seoTitle: articleData?.seoTitle || safeTitle,
+      seoDescription: articleData?.seoDescription || safeSummary,
       slug: slug,
       aiScores: {
-        trustScore: 100, // AI generated, inherently trusted by system
+        trustScore: 100,
         qualityScore: 95,
         relevanceScore: 100,
         isFactChecked: true,

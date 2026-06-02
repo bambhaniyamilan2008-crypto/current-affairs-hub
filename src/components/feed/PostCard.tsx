@@ -1,17 +1,120 @@
 // src/components/feed/PostCard.tsx
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, Share2, Bookmark, ShieldCheck, AlertTriangle } from 'lucide-react';
+// ✅ Firebase ke saare zaroori functions import kar liye (setDoc, deleteDoc included)
+import { doc, updateDoc, increment, setDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
 import { Article } from '@/types';
 
 export default function PostCard({ article }: { article: Article }) {
+  const { user } = useAuth();
+  const router = useRouter();
+
+  // State for interactive buttons
+  const [likesCount, setLikesCount] = useState(article.likesCount || 0);
+  const [isLiked, setIsLiked] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+
   // Determine border color based on AI Trust Score
   const getTrustBorder = (score: number) => {
     if (score >= 90) return 'border-green-500';
     if (score >= 70) return 'border-blue-500';
     return 'border-orange-500';
+  };
+
+  // Safe date formatter (handles both Firebase Timestamp and ISO strings)
+  const formattedDate = new Date(
+    typeof article.createdAt === 'string' 
+      ? article.createdAt 
+      : article.createdAt?.toDate?.() || Date.now()
+  ).toLocaleDateString();
+
+  // Handle Like Action
+  const handleLike = async (e: React.MouseEvent) => {
+    e.preventDefault(); 
+    
+    if (!user) {
+      alert('Please login to like articles!');
+      return router.push('/login');
+    }
+
+    // Optimistic Update: UI turant change karo taaki lag na ho
+    setIsLiked(!isLiked);
+    setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
+
+    try {
+      // Firebase me background me update karo
+      if (article.id) {
+        const articleRef = doc(db, 'articles', article.id);
+        await updateDoc(articleRef, {
+          likesCount: increment(isLiked ? -1 : 1)
+        });
+      }
+    } catch (error) {
+      console.error("Error liking article:", error);
+      // Agar error aaye toh UI ko wapas purani state me laao
+      setIsLiked(!isLiked);
+      setLikesCount(prev => isLiked ? prev + 1 : prev - 1);
+    }
+  };
+
+  // Handle Share Action (Native Web Share API)
+  const handleShare = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const articleUrl = `${window.location.origin}/article/${article.slug}`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: article.title,
+          text: article.summary,
+          url: articleUrl,
+        });
+      } catch (err) {
+        console.error('Error sharing:', err);
+      }
+    } else {
+      // Fallback for desktop browsers without share menu
+      await navigator.clipboard.writeText(articleUrl);
+      alert('Article link copied to clipboard!');
+    }
+  };
+
+  // ✅ COMPLETE FIREBASE BOOKMARK LOGIC
+  const handleBookmark = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!user) {
+      alert('Please login to save articles!');
+      return;
+    }
+
+    // Optimistic UI update (Turant neela/safed hoga)
+    setIsSaved(!isSaved);
+
+    try {
+      if (article.id) {
+        // Firebase mein user ke 'saves' folder ka raasta
+        const saveRef = doc(db, 'users', user.uid, 'saves', article.id);
+        
+        if (isSaved) {
+          // Agar pehle se saved tha, toh hata do (Unsave)
+          await deleteDoc(saveRef);
+        } else {
+          // Naya article Database mein save kar do
+          await setDoc(saveRef, { savedAt: new Date() });
+        }
+      }
+    } catch (error) {
+      console.error("Error saving article:", error);
+      // Error par wapas purana state kardo
+      setIsSaved(isSaved);
+    }
   };
 
   return (
@@ -39,7 +142,7 @@ export default function PostCard({ article }: { article: Article }) {
               )}
             </div>
             <p className="text-xs text-gray-500">
-              {new Date(article.createdAt?.toDate?.() || Date.now()).toLocaleDateString()} • {article.category}
+              {formattedDate} • {article.category}
             </p>
           </div>
         </div>
@@ -59,7 +162,7 @@ export default function PostCard({ article }: { article: Article }) {
           {article.title}
         </h2>
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-3">
-          {article.summary}
+          {article.summary || article.content?.substring(0, 150) + '...'}
         </p>
         
         {article.coverImage && (
@@ -86,21 +189,36 @@ export default function PostCard({ article }: { article: Article }) {
       {/* Footer Actions */}
       <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-900 flex items-center justify-between">
         <div className="flex items-center gap-6 text-gray-500">
-          <button className="flex items-center gap-2 hover:text-red-500 transition-colors">
-            <Heart className="w-5 h-5" />
-            <span className="text-sm">{article.likesCount || 0}</span>
+          
+          {/* Like Button */}
+          <button 
+            onClick={handleLike} 
+            className={`flex items-center gap-2 transition-colors ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
+          >
+            <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+            <span className="text-sm font-medium">{likesCount}</span>
           </button>
-          <button className="flex items-center gap-2 hover:text-blue-500 transition-colors">
+          
+          {/* Comment Button (Links to article page) */}
+          <Link href={`/article/${article.slug}#comments`} className="flex items-center gap-2 hover:text-blue-500 transition-colors">
             <MessageCircle className="w-5 h-5" />
-            <span className="text-sm">{article.commentsCount || 0}</span>
-          </button>
-          <button className="flex items-center gap-2 hover:text-green-500 transition-colors">
+            <span className="text-sm font-medium">{article.commentsCount || 0}</span>
+          </Link>
+          
+          {/* Share Button */}
+          <button onClick={handleShare} className="flex items-center gap-2 hover:text-green-500 transition-colors">
             <Share2 className="w-5 h-5" />
-            <span className="text-sm">{article.sharesCount || 0}</span>
+            <span className="text-sm font-medium">{article.sharesCount || 0}</span>
           </button>
+
         </div>
-        <button className="text-gray-500 hover:text-blue-500 transition-colors">
-          <Bookmark className="w-5 h-5" />
+
+        {/* Bookmark Button */}
+        <button 
+          onClick={handleBookmark} 
+          className={`transition-colors ${isSaved ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}`}
+        >
+          <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
         </button>
       </div>
     </article>

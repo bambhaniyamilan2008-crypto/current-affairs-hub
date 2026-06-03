@@ -4,6 +4,9 @@ import { generateDailyArticle } from '@/services/ai.service';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
+// ✅ BRAHMASTRA 1: Next.js ko bolo is route ko kabhi cache na kare (Hamesha fresh chalaye)
+export const dynamic = 'force-dynamic';
+
 const TOPICS = [
   "Latest National Government Scheme in India",
   "Major International Geopolitical update",
@@ -15,12 +18,11 @@ const TOPICS = [
 
 export async function GET(request: Request) {
   try {
-    // ✅ NAYA SECURITY CHECK: Ab ye URL se 'secret' padhega
     const url = new URL(request.url);
     const secret = url.searchParams.get('secret');
 
-    // Check karo ki URL wala secret aur Vercel wala secret match ho rahe hain ya nahi
-    if (secret !== process.env.CRON_SECRET) {
+    // ✅ BRAHMASTRA 2: Vercel settings ka jhanjhat khatam, direct password check karo!
+    if (secret !== "milan_super_secret_key_2026") {
       console.warn("Unauthorized AI generate attempt!");
       return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
     }

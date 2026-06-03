@@ -6,7 +6,7 @@ import { db } from '@/lib/firebase';
 
 // ✅ BRAHMASTRA 1: Next.js ko bolo is route ko kabhi cache na kare (Hamesha fresh chalaye)
 export const dynamic = 'force-dynamic';
-
+export const maxDuration = 60; // ✅ NAYA: Vercel ko 60 seconds tak wait karne ki permission
 const TOPICS = [
   "Latest National Government Scheme in India",
   "Major International Geopolitical update",

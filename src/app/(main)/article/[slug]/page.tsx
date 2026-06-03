@@ -20,13 +20,11 @@ async function getArticleBySlug(slug: string) {
   return { id: doc.id, ...doc.data() } as Article;
 }
 
-// FIX: Ab compiler ko Promise hi chahiye, toh humne exact official Promise type de diya
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
 export default async function ArticlePage(props: PageProps) {
-  // FIX: Runtime par props.params ko properly await kar liya
   const resolvedParams = await props.params;
   const article = await getArticleBySlug(resolvedParams.slug);
 
@@ -34,7 +32,6 @@ export default async function ArticlePage(props: PageProps) {
     notFound();
   }
 
-  // Determine trust badge styling
   const trustScore = article.aiScores?.trustScore || 0;
   let trustColor = 'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-400';
   let TrustIcon = AlertTriangle;
@@ -48,7 +45,7 @@ export default async function ArticlePage(props: PageProps) {
   }
 
   return (
-    <article className="max-w-3xl mx-auto w-full py-8 px-4 sm:px-6 md:py-12">
+    <article className="max-w-3xl mx-auto w-full py-8 px-4 sm:px-6 md:py-12 relative">
       
       {/* Back Button & Category */}
       <div className="flex items-center justify-between mb-8">
@@ -89,12 +86,6 @@ export default async function ArticlePage(props: PageProps) {
               5 min read
             </p>
           </div>
-        </div>
-
-        {/* Action Buttons (Desktop) */}
-        <div className="hidden sm:flex items-center gap-4 text-gray-500">
-          <button className="hover:text-blue-500 transition"><Share2 className="w-5 h-5" /></button>
-          <button className="hover:text-blue-500 transition"><Bookmark className="w-5 h-5" /></button>
         </div>
       </div>
 
@@ -142,30 +133,46 @@ export default async function ArticlePage(props: PageProps) {
         </div>
       )}
 
+      {/* ✅ NEW: COMMENTS SECTION LANDING SPOT (Magic Scroll yahan aayega) */}
+      <div id="comments" className="pt-10 mb-20 border-t border-gray-200 dark:border-gray-800 scroll-mt-24">
+        <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Discussion</h2>
+        
+        {/* Placeholder UI - Iski jagah hum apna asli Component lagayenge */}
+        <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-8 text-center border border-gray-100 dark:border-gray-800">
+          <p className="text-gray-500 mb-2">Comments feature is being configured...</p>
+          <p className="text-sm text-gray-400">Yahan humara naya CommentSection component aayega!</p>
+        </div>
+      </div>
+
       {/* Original Source */}
       {article.sourceUrl && (
-        <div className="mb-10 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
+        <div className="mb-24 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
           <p className="text-sm text-gray-500">
             Source: <a href={article.sourceUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline break-all">{article.sourceUrl}</a>
           </p>
         </div>
       )}
 
-      {/* Bottom Sticky Action Bar (Like, Comment, Share) */}
-      <div className="sticky bottom-4 sm:bottom-8 mx-auto max-w-sm bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-full px-6 py-3 flex items-center justify-between shadow-lg">
-        <button className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-red-500 transition">
-          <Heart className="w-6 h-6" />
-          <span className="font-medium">{article.likesCount || 0}</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 dark:bg-gray-700"></div>
-        <button className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-blue-500 transition">
-          <MessageCircle className="w-6 h-6" />
-          <span className="font-medium">{article.commentsCount || 0}</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 dark:bg-gray-700"></div>
-        <button className="text-gray-600 dark:text-gray-300 hover:text-green-500 transition">
-          <Share2 className="w-6 h-6" />
-        </button>
+      {/* Bottom Sticky Action Bar */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-sm px-4 z-50">
+        <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-full px-6 py-3 flex items-center justify-between shadow-lg">
+          <button className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-red-500 transition">
+            <Heart className="w-6 h-6" />
+            <span className="font-medium">{article.likesCount || 0}</span>
+          </button>
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700"></div>
+          
+          {/* ✅ UPDATE: Is button ko Link bana diya taaki click karte hi ye scroll karke id="comments" par chala jaye */}
+          <Link href="#comments" className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-blue-500 transition">
+            <MessageCircle className="w-6 h-6" />
+            <span className="font-medium">{article.commentsCount || 0}</span>
+          </Link>
+          
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700"></div>
+          <button className="text-gray-600 dark:text-gray-300 hover:text-green-500 transition">
+            <Share2 className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
     </article>

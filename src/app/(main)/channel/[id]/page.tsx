@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { ShieldCheck, ArrowLeft, Users, Share2, PlusCircle, Globe, FileText, Calendar } from 'lucide-react';
 
@@ -30,10 +30,15 @@ interface ArticleInfo {
 
 // 2. Channel Fetch Karne Ka Function
 async function getChannelById(id: string) {
-  const docRef = doc(db, 'channels', id);
-  const docSnap = await getDoc(docRef);
-  if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() } as Channel;
+  try {
+    const docRef = doc(db, 'channels', id);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    return { id: docSnap.id, ...docSnap.data() } as Channel;
+  } catch (error) {
+    console.error("Error fetching channel:", error);
+    return null;
+  }
 }
 
 // 3. NAYA FUNCTION: Is Channel Ke Saare Articles Fetch Karne Ke Liye
@@ -91,7 +96,7 @@ export default async function ChannelPage(props: PageProps) {
         )}
         
         <div className="absolute top-4 left-4 sm:top-6 sm:left-6">
-          <Link href="/" className="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white text-sm font-medium rounded-full transition">
+          <Link href="/channel" className="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white text-sm font-medium rounded-full transition">
             <ArrowLeft className="w-4 h-4" /> Back
           </Link>
         </div>

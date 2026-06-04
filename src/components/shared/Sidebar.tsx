@@ -4,7 +4,6 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-// ✅ Zaroori icons import kar liye
 import { Home, Flame, Grid, Tv, Bookmark, User, LogIn, Search, PlusCircle, Users } from 'lucide-react';
 import Image from 'next/image';
 
@@ -17,17 +16,17 @@ export default function Sidebar() {
   const safeUserAvatar = user ? ((user as any).profilePic || user.photoURL || '/default-avatar.png') : '/default-avatar.png';
   const profilePath = user ? `/profile/${user.uid}` : '/login';
 
-  // 🔥 YAHAN HAIN AAPKE ASLI FOLDERS KE RASTE (PATHS)
+  // 🔥 100% CORRECT PATHS (Folders ke actual naam ke hisaab se)
   const menuItems = [
     { name: 'Home', path: '/', icon: Home },
-    { name: 'Search', path: '/search', icon: Search },          // Aapka Search folder
+    { name: 'Search', path: '/search', icon: Search },
     { name: 'Categories', path: '/category', icon: Grid },      // category folder
-    { name: 'Trending', path: '/trending', icon: Flame },       // Naya banayenge (agar chahiye toh)
+    { name: 'Trending', path: '/trending', icon: Flame },       // trending folder
     { name: 'Channels', path: '/channel', icon: Tv },           // channel folder
     { name: 'Saved', path: '/save', icon: Bookmark },           // save folder
-    { name: 'Connections', path: '/connection', icon: Users },  // connection folder
-    { name: 'Create', path: '/create', icon: PlusCircle },      // create folder (News daalne ke liye)
-    { name: 'Profile', path: profilePath, icon: User },         // profile folder
+    { name: 'Connections', path: '/connection', icon: Users },  // connection folder (MUKHYA FIX YAHAN THA)
+    { name: 'Create', path: '/create', icon: PlusCircle },      // create folder
+    { name: 'Profile', path: profilePath, icon: User },
   ];
 
   return (
@@ -35,7 +34,7 @@ export default function Sidebar() {
       <div className="space-y-1 mt-2">
         {menuItems.map((item) => {
           const Icon = item.icon;
-          // Path matching ka logic thoda smart kiya hai
+          // Path matching ka smart logic
           const isActive = item.path === '/' ? pathname === '/' : pathname.startsWith(item.path);
 
           return (

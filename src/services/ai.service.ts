@@ -2,64 +2,43 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AIScores, Article } from '@/types';
 
-// Initialize Gemini API
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
 
-export const moderateUserPost = async (
-  title: string, 
-  content: string, 
-  sourceUrl?: string
-): Promise<AIScores> => {
-  const model = genAI.getGenerativeModel({ 
-    model: 'gemini-2.5-flash',
-    generationConfig: { responseMimeType: 'application/json' } 
-  });
-
-  const prompt = `
-    You are an expert AI Moderator for a Current Affairs platform.
-    Analyze the following submission:
-    Title: "${title}"
-    Content: "${content}"
-    Source: "${sourceUrl || 'No source provided'}"
-
-    Evaluate based on: Fake news, political hate, relevance to current affairs, and spam.
-    Return ONLY a valid JSON object with the following schema:
-    {
-      "trustScore": number (0-100),
-      "qualityScore": number (0-100),
-      "relevanceScore": number (0-100),
-      "isFactChecked": boolean,
-      "moderationReport": string (short reason for scores)
-    }
-  `;
-
+export const moderateUserPost = async (title: string, content: string, sourceUrl?: string): Promise<AIScores> => {
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } as any });
+  const prompt = `You are an expert AI Moderator... Analyze: Title: "${title}", Content: "${content}". Return ONLY JSON... { "trustScore": number, "qualityScore": number, "relevanceScore": number, "isFactChecked": boolean, "moderationReport": string }`;
   try {
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    const scores: AIScores = JSON.parse(responseText);
-    return scores;
+    return JSON.parse(result.response.text());
   } catch (error) {
-    console.error("AI Moderation Error:", error);
     throw new Error("Failed to moderate content");
   }
 };
 
-export const generateDailyArticle = async (topic: string): Promise<Partial<Article>> => {
+// ✅ NAYA MASTER PROMPT (Rules 1, 3, aur 4 ke liye)
+export const generateDailyArticle = async (topic: string): Promise<any> => {
   const model = genAI.getGenerativeModel({ 
     model: 'gemini-2.5-flash',
-    generationConfig: { responseMimeType: 'application/json' } 
+    generationConfig: { responseMimeType: 'application/json' } as any 
   });
 
   const prompt = `
-    Act as a professional journalist. Write a factual, engaging current affairs article about "${topic}".
-    The tone must be neutral and informative.
+    Act as a professional, unbiased journalist for a short-news app. 
+    Write a highly engaging current affairs article about: "${topic}".
+    
+    FOLLOW THESE STRICT RULES:
+    1. ANTI-PLAGIARISM: Write entirely in your own words. Do not copy any sentences from any source.
+    2. WORD LIMIT: The 'content' field MUST be strictly between 60 to 100 words. Keep it crisp like an Inshorts card.
+    3. IMAGE KEYWORD: Generate a highly specific 2-word keyword based on the topic (e.g., "space rocket", "stock market") to fetch a copyright-free image.
+
     Return ONLY a valid JSON object matching this structure:
     {
       "title": "Clear, professional headline",
-      "summary": "2-line summary",
-      "content": "Full article content in markdown format",
+      "summary": "2-line engaging summary",
+      "content": "Full plagiarism-free article content (60-100 words)",
       "category": "Must be one of: National, International, Gujarat, Economy, Science & Technology, Sports, Environment, Government Schemes, Awards, Defence, Education, Health",
-      "tags": ["tag1", "tag2", "tag3"],
+      "tags": ["tag1", "tag2"],
+      "imageKeyword": "2-word specific keyword",
       "seoTitle": "SEO optimized title",
       "seoDescription": "SEO meta description"
     }
@@ -67,8 +46,7 @@ export const generateDailyArticle = async (topic: string): Promise<Partial<Artic
 
   try {
     const result = await model.generateContent(prompt);
-    const articleData = JSON.parse(result.response.text());
-    return articleData;
+    return JSON.parse(result.response.text());
   } catch (error) {
     console.error("AI Article Generation Error:", error);
     throw new Error("Failed to generate article");

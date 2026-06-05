@@ -1,12 +1,12 @@
 // src/app/api/ai/generate/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { generateDailyArticle } from '@/services/ai.service';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-// ✅ BRAHMASTRA 1: Next.js ko bolo is route ko kabhi cache na kare (Hamesha fresh chalaye)
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // ✅ NAYA: Vercel ko 60 seconds tak wait karne ki permission
+export const maxDuration = 60; // 60 seconds allowed for Vercel
+
 const TOPICS = [
   "Latest National Government Scheme in India",
   "Major International Geopolitical update",
@@ -16,26 +16,32 @@ const TOPICS = [
   "Gujarat State significant development or news"
 ];
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const url = new URL(request.url);
-    const secret = url.searchParams.get('secret');
+    const secret = request.nextUrl.searchParams.get('secret');
 
-    // ✅ BRAHMASTRA 2: Vercel settings ka jhanjhat khatam, direct password check karo!
     if (secret !== "milan_super_secret_key_2026") {
-      console.warn("Unauthorized AI generate attempt!");
       return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
     }
 
     const randomTopic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
     console.log(`🤖 AI is generating news for topic: ${randomTopic}`);
 
+    // AI API Call
     const articleData = await generateDailyArticle(randomTopic);
 
+    // Fallbacks
     const safeTitle = articleData?.title || "AI Generated Update";
     const safeSummary = articleData?.summary || "Read the latest automated news update.";
     const safeContent = articleData?.content || "Content generation in progress.";
     const safeCategory = articleData?.category || "National";
+    
+    // ✅ RULE 4: AI Generated Copyright-Free Image via pollinations.ai
+    const imageKeyword = articleData?.imageKeyword || "breaking news";
+    const safeCoverImage = `https://image.pollinations.ai/prompt/${encodeURIComponent(imageKeyword)}%20high%20quality%20news%20photography?width=800&height=400&nologo=true`;
+
+    // ✅ RULE 2: Source Link (Directing users to Google News for more context)
+    const safeSourceUrl = `https://news.google.com/search?q=${encodeURIComponent(safeTitle)}`;
 
     const slug = safeTitle
       .toLowerCase()
@@ -52,6 +58,8 @@ export async function GET(request: Request) {
       summary: safeSummary,
       content: safeContent,
       category: safeCategory,
+      coverImage: safeCoverImage, // Automatically added free image
+      sourceUrl: safeSourceUrl,   // Automatically added source link
       tags: articleData?.tags || ['news', 'ai'],
       seoTitle: articleData?.seoTitle || safeTitle,
       seoDescription: articleData?.seoDescription || safeSummary,

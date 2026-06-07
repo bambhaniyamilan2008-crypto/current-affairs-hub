@@ -16,8 +16,9 @@ export default function PostCard({ article }: { article: Article }) {
   const { user } = useAuth();
   const router = useRouter();
 
-  // ✅ Check karo ki kya is user ne pehle se like kiya hua hai
-  const initialIsLiked = user?.uid && article.likedBy ? article.likedBy.includes(user.uid) : false;
+  // ✅ FIX: 'likedBy' ko safely access karne ke liye 'as any' use kiya taaki build error na aaye
+  const likedBy = (article as any).likedBy || [];
+  const initialIsLiked = user?.uid ? likedBy.includes(user.uid) : false;
 
   // State for interactive buttons
   const [likesCount, setLikesCount] = useState(article.likesCount || 0);

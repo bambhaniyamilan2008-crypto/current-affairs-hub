@@ -1,119 +1,237 @@
-// src/app/(main)/profile/[id]/page.tsx
+// src/components/feed/PostCard.tsx
+'use client';
+
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
+import { Heart, MessageCircle, Share2, Bookmark, ShieldCheck, AlertTriangle } from 'lucide-react';
+// ✅ Firebase ke saare zaroori functions import kar liye (arrayUnion aur arrayRemove add kiya hai)
+import { doc, updateDoc, increment, setDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import PostCard from '@/components/feed/PostCard';
-import { MapPin, Link as LinkIcon, Calendar, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Article } from '@/types';
 
-export const dynamic = 'force-dynamic';
+export default function PostCard({ article }: { article: Article }) {
+  const { user } = useAuth();
+  const router = useRouter();
 
-async function getUserProfile(userId: string) {
-  // Yahan hum pehle fake data bhej rahe hain agar DB setup nahi hai, par DB check zarur karenge
-  const usersRef = collection(db, 'users');
-  const q = query(usersRef, where('uid', '==', userId), limit(1));
-  const snapshot = await getDocs(q);
-  
-  if (!snapshot.empty) return snapshot.docs[0].data();
-  
-  // Agar AI ya naya user hai jiska profile load nahi hua
-  return {
-    uid: userId,
-    fullName: userId === 'ai-engine' ? 'AI News Desk' : 'Current Affairs User',
-    bio: userId === 'ai-engine' ? 'Official AI Agent scanning thousands of sources to bring you fact-checked, rapid updates.' : 'Passionate about reading and sharing current affairs.',
-    profilePic: userId === 'ai-engine' ? 'https://ui-avatars.com/api/?name=AI+News&background=0D8ABC&color=fff' : '/default-avatar.png',
-    coverBanner: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=2070&auto=format&fit=crop',
-    location: 'India',
-    followersCount: 1450,
-    connectionsCount: 500,
-    isVerified: userId === 'ai-engine',
-    createdAt: Date.now()
+  // ✅ FIX: 'likedBy' ko safely access karne ke liye 'as any' use kiya taaki build error na aaye
+  const likedBy = (article as any).likedBy || [];
+  const initialIsLiked = user?.uid ? likedBy.includes(user.uid) : false;
+
+  // State for interactive buttons
+  const [likesCount, setLikesCount] = useState(article.likesCount || 0);
+  const [isLiked, setIsLiked] = useState(initialIsLiked);
+  const [isSaved, setIsSaved] = useState(false);
+
+  // Determine border color based on AI Trust Score
+  const getTrustBorder = (score: number) => {
+    if (score >= 90) return 'border-green-500';
+    if (score >= 70) return 'border-blue-500';
+    return 'border-orange-500';
   };
-}
 
-async function getUserArticles(userId: string) {
-  const articlesRef = collection(db, 'articles');
-  const q = query(articlesRef, where('authorId', '==', userId), orderBy('createdAt', 'desc'), limit(10));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-}
+  // Safe date formatter (handles both Firebase Timestamp and ISO strings)
+  const formattedDate = new Date(
+    typeof article.createdAt === 'string' 
+      ? article.createdAt 
+      : article.createdAt?.toDate?.() || Date.now()
+  ).toLocaleDateString();
 
-type PageProps = { params: Promise<{ id: string }> };
+  // ✅ SMART LIKE ACTION
+  const handleLike = async (e: React.MouseEvent) => {
+    e.preventDefault(); 
+    
+    if (!user) {
+      alert('Please login to like articles!');
+      return router.push('/login');
+    }
 
-export default async function ProfilePage(props: PageProps) {
-  const resolvedParams = await props.params;
-  const profile = await getUserProfile(resolvedParams.id);
-  const articles = await getUserArticles(resolvedParams.id) as any[];
+    // Optimistic Update: UI turant change karo taaki lag na ho
+    const newIsLiked = !isLiked;
+    setIsLiked(newIsLiked);
+    setLikesCount(prev => newIsLiked ? prev + 1 : prev - 1);
+
+    try {
+      // Firebase me background me update karo (Count + User ID dono)
+      if (article.id) {
+        const articleRef = doc(db, 'articles', article.id);
+        await updateDoc(articleRef, {
+          likesCount: increment(newIsLiked ? 1 : -1),
+          likedBy: newIsLiked ? arrayUnion(user.uid) : arrayRemove(user.uid) // ✅ ID list update
+        });
+      }
+    } catch (error) {
+      console.error("Error liking article:", error);
+      // Agar error aaye toh UI ko wapas purani state me laao
+      setIsLiked(!newIsLiked);
+      setLikesCount(prev => newIsLiked ? prev - 1 : prev + 1);
+    }
+  };
+
+  // ✅ SHARE ACTION (Improved for PC & Mobile)
+  const handleShare = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const articleUrl = `${window.location.origin}/article/${article.slug}`;
+    
+    // Agar mobile browser hai toh Share menu kholo
+    if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+      try {
+        await navigator.share({
+          title: article.title,
+          text: article.summary,
+          url: articleUrl,
+        });
+      } catch (err) {
+        console.error('Error sharing:', err);
+      }
+    } else {
+      // Agar PC/Laptop hai, toh link copy karo aur clear notification do
+      try {
+        await navigator.clipboard.writeText(articleUrl);
+        alert('✅ Article link copied! Aap isko kahin bhi paste kar sakte hain.');
+      } catch (err) {
+        alert('Link copy nahi ho paya.');
+      }
+    }
+  };
+
+  // ✅ COMPLETE FIREBASE BOOKMARK LOGIC
+  const handleBookmark = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!user) {
+      alert('Please login to save articles!');
+      return;
+    }
+
+    // Optimistic UI update (Turant neela/safed hoga)
+    setIsSaved(!isSaved);
+
+    try {
+      if (article.id) {
+        // Firebase mein user ke 'saves' folder ka raasta
+        const saveRef = doc(db, 'users', user.uid, 'saves', article.id);
+        
+        if (isSaved) {
+          // Agar pehle se saved tha, toh hata do (Unsave)
+          await deleteDoc(saveRef);
+        } else {
+          // Naya article Database mein save kar do
+          await setDoc(saveRef, { savedAt: new Date() });
+        }
+      }
+    } catch (error) {
+      console.error("Error saving article:", error);
+      // Error par wapas purana state kardo
+      setIsSaved(isSaved);
+    }
+  };
 
   return (
-    <div className="max-w-4xl mx-auto w-full pb-12">
+    <article className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden mb-6 hover:shadow-md transition-shadow">
       
-      {/* 1. COVER BANNER */}
-      <div className="relative h-48 md:h-64 w-full bg-blue-100 dark:bg-gray-800">
-        <Image 
-          src={profile.coverBanner || 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=2070&auto=format&fit=crop'} 
-          alt="Cover Banner" fill className="object-cover" 
-        />
-      </div>
-
-      {/* 2. PROFILE INFO SECTION (LinkedIn Style) */}
-      <div className="relative px-4 sm:px-8 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 pb-8">
-        
-        {/* Profile Avatar Overlapping */}
-        <div className="absolute -top-16 md:-top-20">
-          <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white dark:border-gray-950 bg-white dark:bg-gray-900 overflow-hidden shadow-lg">
-            <Image src={profile.profilePic} alt={profile.fullName} fill className="object-cover" />
-          </div>
-        </div>
-
-        {/* Action Buttons (Connect/Follow) */}
-        <div className="flex justify-end pt-4 pb-2">
-          {resolvedParams.id !== 'ai-engine' && (
-            <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-full transition shadow-sm">
-              Connect
-            </button>
-          )}
-        </div>
-
-        {/* User Details */}
-        <div className="mt-2 md:mt-0">
-          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
-            {profile.fullName}
-            {profile.isVerified && <ShieldCheck className="w-6 h-6 text-blue-500" />}
-          </h1>
-          <p className="text-gray-800 dark:text-gray-300 text-lg mt-1 max-w-2xl">
-            {profile.bio || 'News Enthusiast & Current Affairs Reader'}
-          </p>
-          
-          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mt-4">
-            {profile.location && <span className="flex items-center gap-1"><MapPin className="w-4 h-4"/> {profile.location}</span>}
-            <span className="flex items-center gap-1"><Calendar className="w-4 h-4"/> Joined {new Date(profile.createdAt).getFullYear()}</span>
-          </div>
-
-          <div className="flex items-center gap-4 mt-5 text-sm">
-            <span className="text-gray-900 dark:text-white font-semibold">{profile.followersCount} <span className="text-gray-500 font-normal">Followers</span></span>
-            <span className="text-gray-900 dark:text-white font-semibold">{profile.connectionsCount}{profile.connectionsCount === 500 ? '+' : ''} <span className="text-gray-500 font-normal">Connections</span></span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. USER'S POSTS (ACTIVITY) */}
-      <div className="px-4 sm:px-8 mt-8">
-        <div className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Activity & Posts</h2>
-          
-          {articles.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">Inhone abhi tak koi post nahi daali hai.</p>
-          ) : (
-            <div className="space-y-6">
-              {articles.map(article => (
-                <PostCard key={article.id} article={article} />
-              ))}
+      {/* Header: Author & AI Badge */}
+      <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-900">
+        <div className="flex items-center gap-3">
+          <Link href={`/profile/${article.authorId}`}>
+             {/* ✅ FIX: FAST IMAGE LOAD - Removed Next.js Image component here for speed */}
+             <img 
+              src={article.authorAvatar || '/default-avatar.png'} 
+              alt={article.authorName} 
+              className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-800 object-cover"
+            />
+          </Link>
+          <div>
+            <div className="flex items-center gap-1">
+              <Link href={`/profile/${article.authorId}`} className="font-semibold text-gray-900 dark:text-white hover:underline">
+                {article.authorName}
+              </Link>
+              {article.isAuthorVerified && (
+                <ShieldCheck className="w-4 h-4 text-blue-500" />
+              )}
             </div>
-          )}
+            <p className="text-xs text-gray-500">
+              {formattedDate} • {article.category}
+            </p>
+          </div>
         </div>
+
+        {/* AI Trust Badge */}
+        {article.aiScores?.isFactChecked && (
+          <div className={`flex items-center gap-1 px-3 py-1 rounded-full border bg-opacity-10 text-xs font-medium ${getTrustBorder(article.aiScores.trustScore)} ${article.aiScores.trustScore >= 90 ? 'bg-green-50 text-green-700 dark:text-green-400' : 'bg-orange-50 text-orange-700 dark:text-orange-400'}`}>
+            {article.aiScores.trustScore >= 90 ? <ShieldCheck className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+            <span>AI Trust: {article.aiScores.trustScore}%</span>
+          </div>
+        )}
       </div>
 
-    </div>
+      {/* Content */}
+      <Link href={`/article/${article.slug}`} className="block p-4 group">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 transition-colors">
+          {article.title}
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-3">
+          {article.summary || article.content?.substring(0, 150) + '...'}
+        </p>
+        
+        {article.coverImage && (
+          <div className="relative w-full h-64 rounded-xl overflow-hidden mb-4 bg-gray-100 dark:bg-gray-900">
+             {/* ✅ FIX: FAST IMAGE LOAD - Replaced Next.js Image with standard img for instantaneous loading */}
+             <img 
+              src={article.coverImage} 
+              alt={article.title} 
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        )}
+
+        {/* Tags */}
+        <div className="flex flex-wrap gap-2">
+          {article.tags?.map(tag => (
+            <span key={tag} className="text-xs bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 px-2 py-1 rounded-md">
+              #{tag}
+            </span>
+          ))}
+        </div>
+      </Link>
+
+      {/* Footer Actions */}
+      <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-900 flex items-center justify-between">
+        <div className="flex items-center gap-6 text-gray-500">
+          
+          {/* Like Button */}
+          <button 
+            onClick={handleLike} 
+            className={`flex items-center gap-2 transition-colors ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
+          >
+            <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+            <span className="text-sm font-medium">{likesCount}</span>
+          </button>
+          
+          {/* Comment Button (Links to article page) */}
+          <Link href={`/article/${article.slug}#comments`} className="flex items-center gap-2 hover:text-blue-500 transition-colors">
+            <MessageCircle className="w-5 h-5" />
+            <span className="text-sm font-medium">{article.commentsCount || 0}</span>
+          </Link>
+          
+          {/* Share Button */}
+          <button onClick={handleShare} className="flex items-center gap-2 hover:text-green-500 transition-colors">
+            <Share2 className="w-5 h-5" />
+            <span className="text-sm font-medium">{article.sharesCount || 0}</span>
+          </button>
+
+        </div>
+
+        {/* Bookmark Button */}
+        <button 
+          onClick={handleBookmark} 
+          className={`transition-colors ${isSaved ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}`}
+        >
+          <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
+        </button>
+      </div>
+    </article>
   );
 }

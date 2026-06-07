@@ -135,12 +135,11 @@ export default function PostCard({ article }: { article: Article }) {
       <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-900">
         <div className="flex items-center gap-3">
           <Link href={`/profile/${article.authorId}`}>
-            <Image 
+             {/* ✅ FIX: FAST IMAGE LOAD - Removed Next.js Image component here for speed */}
+             <img 
               src={article.authorAvatar || '/default-avatar.png'} 
               alt={article.authorName} 
-              width={40} 
-              height={40} 
-              className="rounded-full border border-gray-200 dark:border-gray-800"
+              className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-800 object-cover"
             />
           </Link>
           <div>
@@ -177,12 +176,13 @@ export default function PostCard({ article }: { article: Article }) {
         </p>
         
         {article.coverImage && (
-          <div className="relative w-full h-64 rounded-xl overflow-hidden mb-4">
-            <Image 
+          <div className="relative w-full h-64 rounded-xl overflow-hidden mb-4 bg-gray-100 dark:bg-gray-900">
+             {/* ✅ FIX: FAST IMAGE LOAD - Replaced Next.js Image with standard img for instantaneous loading */}
+             <img 
               src={article.coverImage} 
               alt={article.title} 
-              fill
-              className="object-cover"
+              className="w-full h-full object-cover"
+              loading="lazy"
             />
           </div>
         )}

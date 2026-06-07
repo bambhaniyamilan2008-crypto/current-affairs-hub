@@ -17,18 +17,19 @@ export default function Sidebar() {
   const profilePath = user ? `/profile/${user.uid}` : '/login';
 
   // 🔥 100% CORRECT PATHS (Folders ke actual naam ke hisaab se)
+  // 🔥 EXACT FOLDER MATCHING PATHS
   const menuItems = [
     { name: 'Home', path: '/', icon: Home },
     { name: 'Search', path: '/search', icon: Search },
-    { name: 'Categories', path: '/category', icon: Grid },      // category folder
-    { name: 'Trending', path: '/trending', icon: Flame },       // trending folder
-    { name: 'Channels', path: '/channel', icon: Tv },           // channel folder
-    { name: 'Saved', path: '/save', icon: Bookmark },           // save folder
-    { name: 'Connections', path: '/connection', icon: Users },  // connection folder (MUKHYA FIX YAHAN THA)
-    { name: 'Create', path: '/create', icon: PlusCircle },      // create folder
+    { name: 'Categories', path: '/category/national', icon: Grid }, // Seedha national news khulega
+    { name: 'Trending', path: '/trending', icon: Flame },
+    { name: 'Channels', path: '/channel', icon: Tv },               // 's' hata diya
+    { name: 'Saved', path: '/save', icon: Bookmark },               // 's' hata diya
+    { name: 'Connections', path: '/connection', icon: Users },      // 's' hata diya
+    { name: 'Create', path: '/create', icon: PlusCircle },
     { name: 'Profile', path: profilePath, icon: User },
   ];
-
+  
   return (
     <aside className="hidden lg:block w-72 h-[calc(100vh-4rem)] sticky top-16 p-4 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 flex-shrink-0 overflow-y-auto scrollbar-hide">
       <div className="space-y-1 mt-2">

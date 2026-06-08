@@ -137,10 +137,9 @@ export default function PostCard({ article }: { article: Article }) {
           <Link href={`/profile/${article.authorId}`}>
              {/* ✅ FIX: FAST IMAGE LOAD - Removed Next.js Image component here for speed */}
              <img 
-              src={article.coverImage} 
-              alt={article.title}
-              className="w-full h-full object-cover"
-              loading="lazy"
+              src={article.authorAvatar || '/default-avatar.png'} 
+              alt={article.authorName} 
+              className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-800 object-cover"
             />
           </Link>
           <div>
